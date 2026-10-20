@@ -1,109 +1,124 @@
 # Proyecto Clínica Dental
 
-Gestión de citas de pacientes de una clínica dental, realizado con **JSP + scriptlets + JDBC**
-sobre MySQL. Es el equivalente del proyecto `dwes_jsp_jdbc` (gestión de socios de un club de baloncesto).
+Aplicación web para gestionar pacientes y citas de una clínica dental. Está desarrollada
+con **Servlets Jakarta, JSP/JSTL y JDBC**, organizada según el patrón **MVC** y conectada a
+MySQL. Se construye como archivo WAR con Maven.
+
+## Arquitectura MVC
+
+- **Modelo:** `Paciente`, `Cita` y `Odontologo` representan los datos mostrados por la aplicación.
+- **Acceso a datos:** `ClinicaDAO` centraliza las consultas e inserciones JDBC. Usa
+  `PreparedStatement` para las operaciones que reciben datos del usuario y cierra recursos
+  mediante *try-with-resources*.
+- **Controladores:** `PacienteServlet` y `CitaServlet` procesan las peticiones, preparan los
+  datos para las vistas y ejecutan las operaciones solicitadas.
+- **Vistas:** JSP bajo `WEB-INF/views`, renderizadas con EL y JSTL. No contienen scriptlets
+  ni pueden solicitarse directamente desde el navegador.
 
 ## Estructura
 
 ```
-dwes_scriplet_dentista/
-├── pom.xml
-└── src/main/
-    ├── resources/
-    │   └── dentista.sql                    <- script de creación de la base de datos
-    └── webapp/
-        ├── index.jsp                      <- menú principal
-        ├── listadoPacientes.jsp           <- listado de pacientes
-        ├── listadoCitas.jsp               <- próximas citas
-        ├── formularioPaciente.jsp         <- formulario de alta de paciente
-        ├── grabaPaciente.jsp              <- inserta el paciente
-        ├── formularioCita.jsp             <- formulario de alta de cita
-        ├── grabaCita.jsp                  <- inserta la cita
-        ├── borraPaciente.jsp              <- da de baja un paciente
-        ├── borraCita.jsp                  <- anula una cita
-        └── estilos.css
+src/main/
+├── java/es/dwes/dentista/
+│   ├── controller/
+│   │   ├── CitaServlet.java
+│   │   └── PacienteServlet.java
+│   ├── dao/
+│   │   └── ClinicaDAO.java
+│   └── model/
+│       ├── Cita.java
+│       ├── Odontologo.java
+│       └── Paciente.java
+├── resources/
+│   └── dentista.sql
+└── webapp/
+    ├── index.jsp
+    ├── estilos.css
+    └── WEB-INF/views/
+        ├── error.jsp
+        ├── formularioCita.jsp
+        ├── formularioPaciente.jsp
+        ├── listadoCitas.jsp
+        └── listadoPacientes.jsp
 ```
 
-> El proyecto **no contiene ningún archivo `.java`**: toda la lógica (conexión a la base
-> de datos y consultas) va en scriptlets dentro de las propias páginas JSP, al estilo del
-> proyecto `dwes_jsp_jdbc`.
+Solo `index.jsp` y `estilos.css` se encuentran en la raíz pública de la aplicación. El resto
+de las vistas se sirve mediante *forward* desde los servlets y queda protegido en `WEB-INF`.
+
+## Rutas
+
+| Método | Ruta | Función |
+|---|---|---|
+| `GET` | `/` | Menú principal |
+| `GET` | `/pacientes` | Listado de pacientes |
+| `GET` | `/pacientes/nuevo` | Formulario de alta de paciente |
+| `POST` | `/pacientes/guardar` | Inserta un paciente |
+| `POST` | `/pacientes/eliminar` | Elimina un paciente y sus citas asociadas |
+| `GET` | `/citas` | Próximas citas |
+| `GET` | `/citas?todas=1` | Histórico completo de citas |
+| `GET` | `/citas/nueva` | Formulario de alta de cita |
+| `POST` | `/citas/guardar` | Inserta una cita |
+| `POST` | `/citas/anular` | Anula una cita |
+
+Las operaciones de escritura usan el patrón POST/Redirect/GET. Las acciones de borrado solo
+se exponen mediante POST.
 
 ## Base de datos
 
-Base de datos `dentista` con tres tablas:
+El script `src/main/resources/dentista.sql` crea la base de datos `dentista` y sus tablas:
 
-| Tabla         | Campo clave     | Contenido                                                          |
-|---------------|-----------------|--------------------------------------------------------------------|
-| `paciente`    | `id_paciente`   | nombre, apellidos, dni, fecha_nacimiento, telefono, email, direccion, alergias |
-| `odontologos` | `id_odontologo` | nombre, especialidad                                                  |
-| `cita`        | `id_cita`       | fecha, hora, `id_paciente` (FK), `id_odontologo` (FK), motivo        |
+| Tabla | Clave primaria | Datos principales |
+|---|---|---|
+| `paciente` | `id_paciente` | Nombre, apellidos, DNI, fecha de nacimiento, teléfono, email, dirección y alergias |
+| `odontologos` | `id_odontologo` | Nombre y especialidad |
+| `cita` | `id_cita` | Fecha, hora, paciente, odontólogo y motivo |
 
-Relaciones:
+`cita.id_paciente` referencia a `paciente.id_paciente` con `ON DELETE CASCADE`, por lo que al
+eliminar un paciente también se eliminan sus citas. `cita.id_odontologo` referencia a
+`odontologos.id_odontologo`.
 
-- `cita.id_paciente` → `paciente.id_paciente`, con `ON DELETE CASCADE`: al borrar un
-  paciente se borran también sus citas.
-- `cita.id_odontologo` → `odontologos.id_odontologo`: la cita guarda la clave del
-  odontólogo, no su nombre, para que los profesionales se mantengan en un único sitio.
+### Configuración local
 
-## Prerrequisitos
+Requisitos: Java 21, Maven 3.8 o posterior, MySQL Server y Apache Tomcat 11.
 
-1. Importar la base de datos `src/main/resources/dentista.sql`:
+Importa el esquema y los datos de ejemplo:
 
-   ```bash
-   mysql -u user -puser < src/main/resources/dentista.sql
-   ```
+```bash
+mysql -u user -puser < src/main/resources/dentista.sql
+```
 
-   Las citas de ejemplo se crean con `DATE_ADD(CURDATE(), INTERVAL n DAY)`, por lo que
-   siempre habrá citas próximas y pasadas sea cual sea el día de importación.
+La aplicación espera MySQL en `localhost:3306`, base de datos `dentista` y credenciales
+`user` / `user`. La URL y las credenciales JDBC están centralizadas en `ClinicaDAO`.
 
-2. Disponer de MySQL Server en `localhost:3306` con el usuario `user` / contraseña `user`
-   (si son distintos, cambiarlos en el `String url` de cada página JSP).
+## Tomcat y dependencias
 
-3. Java 21 y Maven 3.8+.
+El proyecto usa el namespace `jakarta.*` y está preparado para **Apache Tomcat 11**:
 
-## Plataforma: Tomcat 9 (Java EE 8)
+| Especificación | Versión |
+|---|---|
+| Jakarta Servlet | 6.1 |
+| Jakarta Server Pages (JSP) | 4.0, proporcionada por Tomcat |
+| Jakarta Expression Language (EL) | proporcionada por Tomcat |
+| Jakarta Tags (JSTL) | 3.0 |
 
-La aplicación está preparada para **Tomcat 9**, que implementa Java EE 8 y por tanto usa
-el *namespace* `javax.*` (no `jakarta.*`):
+Maven incluye Jakarta Servlet API con alcance `provided` (la aporta Tomcat), JSTL para las
+vistas y MySQL Connector/J dentro del WAR.
 
-| Especificación | Versión | Artefacto Maven                 |
-|----------------|---------|---------------------------------|
-| Servlet        | 4.0     | `javax.servlet:javax.servlet-api:4.0.1` |
-| JSP            | 2.3     | incluido en el contenedor        |
-| Expression Lang| 3.0     | incluido en el contenedor        |
+## Compilar y desplegar
 
-El contenedor que corresponde es **Tomcat 9.0.x** (no 10.x, que ya es Jakarta EE 9 con
-`jakarta.*`).
+Desde la raíz del proyecto:
 
 ```bash
 mvn clean package
 ```
 
-Genera `target/scriplet_dentista.war`, que se despliega en Tomcat 9.0.x.
-El contexto de la aplicación es `/scriplet_dentista`.
+El archivo `target/scriplet_dentista.war` puede copiarse a la carpeta `webapps` de Tomcat 11.
+Con el nombre actual del WAR, el contexto será `/scriplet_dentista`:
 
-## Notas de implementación
+```text
+http://localhost:8080/scriplet_dentista/
+```
 
-- La página de inicio es `index.jsp` (no `index.html`). Sus cuatro enlaces son:
-  - `listadoPacientes.jsp` → listado de pacientes
-  - `listadoCitas.jsp` → próximas citas (añadir `?todas=1` para ver el histórico)
-  - `formularioCita.jsp` → alta de cita (selector de fecha, hora y paciente)
-  - `formularioPaciente.jsp` → alta de paciente
-- Toda la lógica (conexiones y consultas) está en scriptlets dentro de las páginas JSP.
-  **No hay ningún archivo `.java`** en el proyecto.
-- Cada JSP que necesita la base de datos abre su propia conexión con
-  `DriverManager.getConnection(url, "user", "user")` y la cierra con *try-with-resources*.
-  La cadena de conexión está repetida en cada página; si hay que cambiar el servidor o
-  las credenciales, hay que tocarlas en todas.
-- Los odontólogos se leen directamente de la tabla `odontologos` con un `SELECT` dentro
-  de `formularioCita.jsp`, que es lo que permite construir el selector de la cita.
-- Las inserciones y los borrados usan `PreparedStatement` para evitar inyecciones SQL.
-- El borrado de pacientes y de citas se hace con `POST`.
-
-# Tarea a realizar
-1. Convertir a proyecto servlet, de la manera más "elegante", según hemos visto en clase.
-2. Modificar el archivo README.md para que la información se corresponda al proyecto portado a servlet.
-
-En la tarea de Classroom, entregar:
-- el proyecto en formato zip (sin carpeta target ni build).
-- enlace al repositorio público.
+En Eclipse/VS Code también se puede agregar el proyecto al servidor Tomcat configurado en el
+entorno. Si se cambia el servidor, la base de datos o las credenciales, hay que actualizar la
+configuración JDBC de `ClinicaDAO`.
