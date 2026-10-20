@@ -1,3 +1,7 @@
 build/
 target/
 *.class
+.settings/
+.project
+.classpath
+.vscode/

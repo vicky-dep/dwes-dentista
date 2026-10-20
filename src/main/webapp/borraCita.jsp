@@ -2,6 +2,12 @@
 <%@page import="java.sql.DriverManager"%>
 <%@page import="java.sql.PreparedStatement"%>
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
+<%
+  if (!"POST".equalsIgnoreCase(request.getMethod())) {
+    response.sendError(405);
+    return;
+  }
+%>
 <!DOCTYPE html>
 <html>
   <head>
